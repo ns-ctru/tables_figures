@@ -1,0 +1,143 @@
+---
+title: "Automated Tables and Figures"
+author: Neil Shephard
+date: 2017-11-14
+---
+
+# The Problem
+
+- Disconnect between Statistical Software and submitted manuscripts.
+- MHRA advised that evidence of accuracy of numbers in manuscripts required.
+- Proposed solution by CTRU is yet another Quality Control check in form of "Quality Gate" form.
+- First time using it on DiPEP Kim Horspool checked and signed.
+- Reviewers comments highlighted some problems where wrong numbers had been copied into a table.
+- **NOT** Kim's fault, mistakes happen (we're all human) but shows shortcoming of proposed "Quality Gate".
+
+# Lessening Workload and Improving Standards
+
+- Propose all tables and figures produced by trial Statistician.
+- Produce tables in M$-Word documents for copying and pasting into manuscript.
+- Produce high-quality stand-alone images for inclusion.
+
+# Proposal
+
+- Statisticians write SAP with sample table structures and output.
+- Produce Statistical Report
+- Place holders for tables and figures inserted into draft manuscripts with description of what table should contain.
+- Statisticians write code to produce the specified output for copying nad pasting.
+
+# Example - Height data
+
+```{r sample_data_plot, echo = FALSE, results = 'asis', error = FALSE, message = FALSE, eval = TRUE}
+## Seed so that this is reproducible
+set.seed(87965163)
+## Generate some random data on height
+data <- rnorm(n = 268, mean = 130, sd = 28) %>%
+        as.tibble() %>%
+        mutate(row = rownames(.),
+               id  = case_when(nchar(row) == 1 ~ paste0('ID', '00', row),
+                               nchar(row) == 2 ~ paste0('ID', '0', row),
+                               nchar(row) == 3 ~ paste0('ID', row)),
+               random = runif(n = nrow(.)),
+               status = ifelse(random > 0.5,
+                               yes = 'Case',
+                               no  = 'Control')) %>%
+    dplyr::select(-row, -random)
+names(data) <- gsub('value', 'height', names(data))
+## Introduce some erroneous values
+data <- data %>%
+        mutate(height = ifelse(id == 'ID050',
+                               yes = 1.236149,
+                               no  = height),
+               height = ifelse(id == 'ID184',
+                               yes = 389.4675,
+                               no  = height),
+               height = ifelse(id == 'ID243',
+                               yes = 491.3786,
+                               no  = height))
+
+## Plot the data to show the erroneous data points
+ggplot(data, aes(height, fill = status)) +
+  geom_histogram() +
+  facet_wrap(~status) +
+  ggtitle('Height in Cases and Controls') +
+  xlab('Height (cm)') + ylab('N') +
+  guides(fill = FALSE) +
+  theme_bw()
+```
+
+# Example - Height data (*cont.*)
+
+```{r sample_data_table, echo = FALSE, results = 'asis', error = FALSE, message = FALSE, eval = TRUE}
+## Summarise the data
+digits <- 2
+summary_stats <- data %>%
+                 group_by(status) %>%
+                 summarise(n = n(),
+                           mean = mean(height, na.rm = TRUE),
+                           sd   = sd(height, na.rm = TRUE),
+                           min  = min(height, na.rm = TRUE),
+                           max  = max(height, na.rm = TRUE),
+                           p25  = quantile(height, probs = 0.25, a.rm = TRUE),
+                           p50  = quantile(height, probs = 0.50, a.rm = TRUE),
+                           p75  = quantile(height, probs = 0.75, a.rm = TRUE)) %>%
+                 mutate(mean_sd    = paste0(formatC(mean, digits = digits, format = "f"),
+                                            " (",
+                                            formatC(sd, digits = digits, format = "f"),
+                                            ")"),
+                        range      = paste0(formatC(min, digits = digits, format = "f"),
+                                            " - ",
+                                            formatC(max, digits = digits, format = "f")),
+                        median_iqr = paste0(formatC(p50, digits = digits, format = "f"),
+                                            " (",
+                                            formatC(p25, digits = digits, format = "f"),
+                                            " - ",
+                                            formatC(p75, digits = digits, format = "f"),
+                                            ")"))
+dplyr::select(summary_stats, status, n, mean_sd, range, median_iqr) %>%
+    kable(caption = 'Summary statistics for Cases and Controls',
+          col.names = c('Status', 'N', 'Mean (SD)', 'Range', 'Median (IQR)'))
+
+## Extract mean and SD for each groups
+results <- list()
+results$case_mean <- data %>%
+                     dplyr::filter(status == 'Case') %$%
+                     mean(height, na.rm = TRUE)
+results$case_sd   <- data %>%
+                     dplyr::filter(status == 'Case') %$%
+                     sd(height, na.rm = TRUE)
+results$control_mean <- data %>%
+                        dplyr::filter(status == 'Control') %$%
+                        mean(height, na.rm = TRUE)
+results$control_sd   <- data %>%
+                        dplyr::filter(status == 'Control') %$%
+                        sd(height, na.rm = TRUE)
+
+
+```
+
+# Example - Height data (*cont.*)
+
+- Clearly some erroneous data points...
+
+```{r sample_data_erroneous, echo = FALSE, results = 'asis', error = FALSE, message = FALSE, eval = TRUE}
+## Identify individuals with spurious data points
+data %>%
+    dplyr::filter(height < 10 | height > 250) %>%
+    dplyr::select(id, status, height) %>%
+    kable(caption = 'Spurious data points that need correcting')
+## Write the data to file for editing
+write.table(data,
+            file      = 'data/original.csv',
+            row.names = FALSE,
+            col.names = TRUE,
+            sep       = ',')
+
+```
+
+# Gold Standard
+
+- Ultimately *all* manuscripts could be written in RMarkdown to avoid *any* transcription errors.
+- Numbers can be included in the text directly from the software.
+- This would negate the need to use "quality gate" entirely and reduce the repetitive, error prone nature of copying numbers from statistical reports to M$-Word manuscripts.
+- **Don't Worry** - whilst I think this should be strived for its not going to happen, if it did correcting errors would be as simple as [this](https://www.youtube.com/watch?v=s3JldKoA0zw).

@@ -1,0 +1,97 @@
+---
+title: "Automated Tables and Figures"
+author: Neil Shephard
+date: 2017-11-14
+output: word_document
+---
+
+# Overview
+
+This is a very simple M$-Word document that has been generated from source [RMarkdown](http://rmarkdown.rstudio.com/lesson-1.html) source files in the statistical packages [R](https://www.r-project.org/).  Its purpose is to demonstrate how using this approach mitigates the scope for errors being introduced when humans have to copy numbers from one document to another.
+
+Initially the figures and tables are based on data that contains errors within it.
+
+```{r sample_data_read, echo = FALSE, results = 'asis', error = FALSE, message = FALSE, eval = TRUE}
+data <- read.csv('../data/original.csv')
+## data <- read.csv('../data/corrected.csv')
+
+```
+
+## Histogram
+
+```{r sample_data_hist, echo = FALSE, results = 'asis', error = FALSE, message = FALSE, eval = TRUE}
+## Plot the data to show the erroneous data points
+ggplot(data, aes(height, fill = status)) +
+  geom_histogram() +
+  facet_wrap(~status) +
+  ggtitle('Height in Cases and Controls') +
+  xlab('Height (cm)') + ylab('N') +
+  guides(fill = FALSE) +
+  theme_bw()
+
+```
+
+## Box and Whisker Plot
+```{r sample_data_box, echo = FALSE, results = 'asis', error = FALSE, message = FALSE, eval = TRUE}
+## Plot the data to show the erroneous data points
+ggplot(data, aes(status, height, fill = status)) +
+  geom_boxplot() +
+  ggtitle('Height in Cases and Controls') +
+  xlab('Height (cm)') + ylab('N') +
+  guides(fill = FALSE) +
+  theme_bw()
+
+```
+
+## Tabulation
+
+```{r sample_data_table, echo = FALSE, results = 'asis', error = FALSE, message = FALSE, eval = TRUE}
+## Summarise the data
+digits <- 2
+summary_stats <- data %>%
+                 group_by(status) %>%
+                 summarise(n = n(),
+                           mean = mean(height, na.rm = TRUE),
+                           sd   = sd(height, na.rm = TRUE),
+                           min  = min(height, na.rm = TRUE),
+                           max  = max(height, na.rm = TRUE),
+                           p25  = quantile(height, probs = 0.25, a.rm = TRUE),
+                           p50  = quantile(height, probs = 0.50, a.rm = TRUE),
+                           p75  = quantile(height, probs = 0.75, a.rm = TRUE)) %>%
+                 mutate(mean_sd    = paste0(formatC(mean, digits = digits, format = "f"),
+                                            " (",
+                                            formatC(sd, digits = digits, format = "f"),
+                                            ")"),
+                        range      = paste0(formatC(min, digits = digits, format = "f"),
+                                            " - ",
+                                            formatC(max, digits = digits, format = "f")),
+                        median_iqr = paste0(formatC(p50, digits = digits, format = "f"),
+                                            " (",
+                                            formatC(p25, digits = digits, format = "f"),
+                                            " - ",
+                                            formatC(p75, digits = digits, format = "f"),
+                                            ")"))
+dplyr::select(summary_stats, status, n, mean_sd, range, median_iqr) %>%
+    kable(caption = 'Summary statistics for Cases and Controls',
+          col.names = c('Status', 'N', 'Mean (SD)', 'Range', 'Median (IQR)'))
+
+## Extract mean and SD for each groups
+results <- list()
+results$case_mean <- data %>%
+                     dplyr::filter(status == 'Case') %$%
+                     mean(height, na.rm = TRUE)
+results$case_sd   <- data %>%
+                     dplyr::filter(status == 'Case') %$%
+                     sd(height, na.rm = TRUE)
+results$control_mean <- data %>%
+                        dplyr::filter(status == 'Control') %$%
+                        mean(height, na.rm = TRUE)
+results$control_sd   <- data %>%
+                        dplyr::filter(status == 'Control') %$%
+                        sd(height, na.rm = TRUE)
+
+```
+
+## In-line text
+
+Its even possible to have the text based on the underlying data updated automatically.  For example the mean in cases is `r results$case_mean` (SD `r results$case_sd`) whilst in controls the mean is  `r results$control_mean` (SD `r results$control_sd`).
